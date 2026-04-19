@@ -144,6 +144,7 @@ def load_config(config_path: str) -> dict:
     cfg.setdefault("formats", ["unity", "source"])
     cfg.setdefault("skip_existing", True)
     cfg.setdefault("delay_between_downloads", 1.5)
+    cfg.setdefault("latest_only", False)
     return cfg
 
 
@@ -530,6 +531,85 @@ def _wanted_format(file_format: str, formats: list) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Latest-version filtering
+# ---------------------------------------------------------------------------
+
+def _group_key_and_version(name_stem: str) -> tuple:
+    """Return (group_key, version_sort_tuple) for a name stem.
+
+    Files that represent the same asset for different engine versions share the
+    same group_key.  The version_sort_tuple can be compared with > so the
+    newest file has the highest value.
+
+    Examples::
+
+        "POLYGON_AncientEmpire_Unreal_4_25_v1_4_0"
+            -> group_key  = "POLYGON_AncientEmpire_Unreal"
+            -> sort_tuple = ((1, 4, 0), (4, 25))
+
+        "POLYGON_AncientEmpire_Unreal_5_4_v1_5_1"
+            -> group_key  = "POLYGON_AncientEmpire_Unreal"
+            -> sort_tuple = ((1, 5, 1), (5, 4))
+    """
+    # Split on the engine-type keyword: everything up to and including
+    # "Unreal" or "Unity" is the group key; the rest is the version.
+    m = re.match(r'^(.*?(?:Unreal|Unity))_(.+)$', name_stem, re.I)
+    if m:
+        group_key = m.group(1)
+        version_part = m.group(2)
+    else:
+        # No engine keyword -- try splitting on a bare pack version like v1_5_1
+        m2 = re.match(r'^(.+?)_(v\d+.*)$', name_stem, re.I)
+        if m2:
+            group_key = m2.group(1)
+            version_part = m2.group(2)
+        else:
+            # No recognisable version suffix -- treat each file as unique
+            return (name_stem, ((0,), ()))
+
+    # Pack version: v1_4_0 / v1_5_1
+    pv = re.search(r'v(\d+)[_.]?(\d+)(?:[_.]?(\d+))?', version_part, re.I)
+    pack_ver = (int(pv.group(1)), int(pv.group(2)), int(pv.group(3) or 0)) if pv else (0, 0, 0)
+
+    # Engine version: numeric digits that remain after removing the pack version
+    engine_part = re.sub(r'v\d+[\d._]*', '', version_part, flags=re.I)
+    engine_nums = tuple(int(x) for x in re.findall(r'\d+', engine_part))
+
+    return (group_key, (pack_ver, engine_nums))
+
+
+def filter_latest_only(files: list) -> list:
+    """Keep only the highest-versioned file per (base-name, engine-type) group.
+
+    Files that share the same base asset name and engine type (e.g. all Unreal
+    variants of POLYGON_AncientEmpire) are grouped together and only the one
+    with the highest version is kept.  The original list order is preserved.
+
+    Args:
+        files: List of file dicts as returned by ``fetch_pack_files``.
+
+    Returns:
+        A filtered list with at most one entry per version group.
+    """
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for f in files:
+        key, _ = _group_key_and_version(f["name_stem"])
+        groups[key].append(f)
+
+    keep_ids: set = set()
+    for group_files in groups.values():
+        best = max(
+            group_files,
+            key=lambda f: _group_key_and_version(f["name_stem"])[1],
+        )
+        keep_ids.add(id(best))
+
+    return [f for f in files if id(f) in keep_ids]
+
+
+
+# ---------------------------------------------------------------------------
 # Filesystem helpers
 # ---------------------------------------------------------------------------
 
@@ -746,6 +826,12 @@ def main() -> None:
         action="store_true",
         help="Verify that cookies.txt is valid and exit",
     )
+    parser.add_argument(
+        "--latest-only",
+        action="store_true",
+        default=False,
+        help="Only download the highest-versioned file per asset+engine group",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -778,9 +864,13 @@ def main() -> None:
     if FORMAT_ALL in formats:
         formats = [FORMAT_ALL]
 
+    # --latest-only flag overrides config value when supplied
+    latest_only: bool = args.latest_only or cfg["latest_only"]
+
     print(f"Download directory : {cfg['download_dir']}")
     print(f"Formats            : {', '.join(formats)}")
     print(f"Skip existing      : {cfg['skip_existing']}")
+    print(f"Latest only        : {latest_only}")
     if args.dry_run:
         print("Mode               : DRY RUN (no files will be written)")
     print()
@@ -816,6 +906,12 @@ def main() -> None:
             print("  (no files found)")
             continue
 
+        if latest_only:
+            wanted_for_latest = [f for f in files if _wanted_format(f["format"], formats)]
+            _latest_ids: set = {id(f) for f in filter_latest_only(wanted_for_latest)}
+        else:
+            _latest_ids = set()
+
         for finfo in files:
             fmt = finfo["format"]
             stem = finfo["name_stem"]
@@ -828,6 +924,11 @@ def main() -> None:
 
             if not _wanted_format(fmt, formats):
                 print(f"  [SKIP  ] {stem}  (format '{fmt}' not in config)")
+                stats["filtered"] += 1
+                continue
+
+            if latest_only and id(finfo) not in _latest_ids:
+                print(f"  [SKIP  ] {stem}  (older version)")
                 stats["filtered"] += 1
                 continue
 

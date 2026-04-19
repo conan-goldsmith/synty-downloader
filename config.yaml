@@ -20,7 +20,7 @@ download_dir: /share/homes/Corneliyus/Game_Dev/Synty/
 #   formats: [unity, source]     <- Unity packages + source art
 #   formats: [unreal]            <- Unreal only
 #   formats: [all]               <- Everything (largest download)
-formats: [unity, source]
+formats: [all]
 
 # Skip files that already exist in the download directory.
 # Recommended: true — allows resuming interrupted runs safely.
@@ -29,3 +29,9 @@ skip_existing: true
 # Seconds to wait between individual file downloads.
 # Increase this if you receive HTTP 429 (Too Many Requests) errors.
 delay_between_downloads: 1.5
+
+# When true, only download the highest-versioned file per asset+engine group.
+# For example, if you own POLYGON_AncientEmpire for Unreal 4.25 through 5.4,
+# only the 5.4 build (the newest) will be downloaded.
+# Override at runtime with: --latest-only
+latest_only: false
