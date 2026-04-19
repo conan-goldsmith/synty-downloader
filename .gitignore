@@ -1,0 +1,26 @@
+# Browser session cookies — never commit these
+cookies.txt
+
+# Partial downloads left by interrupted runs
+*.part
+
+# Debug HTML dumps from development
+debug_*.html
+
+# Python byte-compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+synty_env/
+.venv/
+venv/
+env/
+
+# Editor / OS artefacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
