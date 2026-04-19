@@ -1,0 +1,31 @@
+# synty_downloader configuration
+# ================================
+# Copy cookies.txt (Netscape format) from your browser into this directory.
+# Use "Get cookies.txt LOCALLY" (Chrome/Firefox) while logged into syntystore.com.
+
+# Path to your exported cookies.txt file.
+cookies_file: ./cookies.txt
+
+# Directory where downloaded packs are saved.  Each pack gets its own subfolder.
+# Supports ~ expansion.
+download_dir: /share/homes/Corneliyus/Game_Dev/Synty/
+
+# Which file variants to download.  Supported values:
+#   unity   -> Unity package files  (e.g. POLYGON_Adventure_Unity_2022_3.unitypackage)
+#   unreal  -> Unreal Engine files  (e.g. POLYGON_Adventure_Unreal.zip)
+#   source  -> Source / raw files   (e.g. FBX, textures, Blender, icons)
+#   all     -> Every variant regardless of engine/format
+#
+# Examples:
+#   formats: [unity, source]     <- Unity packages + source art
+#   formats: [unreal]            <- Unreal only
+#   formats: [all]               <- Everything (largest download)
+formats: [unity, source]
+
+# Skip files that already exist in the download directory.
+# Recommended: true — allows resuming interrupted runs safely.
+skip_existing: true
+
+# Seconds to wait between individual file downloads.
+# Increase this if you receive HTTP 429 (Too Many Requests) errors.
+delay_between_downloads: 1.5
