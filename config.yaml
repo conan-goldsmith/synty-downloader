@@ -34,4 +34,4 @@ delay_between_downloads: 1.5
 # For example, if you own POLYGON_AncientEmpire for Unreal 4.25 through 5.4,
 # only the 5.4 build (the newest) will be downloaded.
 # Override at runtime with: --latest-only
-latest_only: false
+latest_only: true
